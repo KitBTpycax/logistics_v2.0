@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Логістика PRO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/"><i class="bi bi-truck-front"></i> Логістика PRO</a>
+        <div class="d-flex">
+            <a href="/history" class="btn btn-outline-light btn-sm"><i class="bi bi-clock-history"></i> Історія</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row">
+        <div class="col-lg-5">
+            <form method="POST" action="/">
+                
+                <div class="modern-card">
+                    <div class="card-header-custom"><i class="bi bi-cash-coin me-2"></i> Фінанси</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6"><label>Пальне</label><input type="number" step="0.1" name="fuel_price" class="form-control" placeholder="грн/л" value="{{ form.fuel_price if form else '' }}" required></div>
+                            <div class="col-6"><label>ЗП Водія</label><input type="number" step="0.1" name="driver_salary" class="form-control" placeholder="грн/км" value="{{ form.driver_salary if form else '' }}" required></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modern-card">
+                    <div class="card-header-custom d-flex justify-content-between align-items-center bg-dark">
+                        <span><i class="bi bi-buildings-fill me-2"></i> Склади та Авто</span>
+                        <button type="button" class="btn btn-sm btn-light text-dark fw-bold" onclick="addSupplierRow()">+ Склад</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="suppliers-container" class="p-3">
+                            {% if form and form.supplier_name %}
+                                {% for name in form.supplier_name %}
+                                <div class="supplier-row mb-3 pb-3 border-bottom">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6"><input type="text" name="supplier_name" class="form-control fw-bold w-100" value="{{ name }}" placeholder="Назва складу"></div>
+                                        <div class="col-3"><input type="number" name="supplier_trucks_count" class="form-control border-primary truck-count-trigger w-100" value="{{ form.supplier_trucks_count[loop.index0] }}" placeholder="Авто (шт)" oninput="renderTruckInputs(this)"></div>
+                                        <div class="col-3"><input type="number" step="0.1" name="supplier_inventory" class="form-control border-success w-100" value="{{ form.supplier_inventory[loop.index0] }}" placeholder="Товар (т)"></div>
+                                    </div>
+                                    <div class="trucks-config-area truck-input-group">
+                                        <small class="text-muted d-block mb-1">Параметри авто (Тоннаж / Витрата):</small>
+                                        <div class="truck-inputs-wrapper"></div>
+                                        <input type="hidden" name="supplier_caps_hidden" class="caps-hidden" value="{{ form.supplier_caps_hidden[loop.index0] }}">
+                                        <input type="hidden" name="supplier_cons_hidden" class="cons-hidden" value="{{ form.supplier_cons_hidden[loop.index0] }}">
+                                    </div>
+                                    <div class="input-group mt-2">
+                                        <input type="text" name="supplier_lat" class="form-control lat-input" value="{{ form.supplier_lat[loop.index0] }}" placeholder="Lat" readonly>
+                                        <input type="text" name="supplier_lng" class="form-control lng-input" value="{{ form.supplier_lng[loop.index0] }}" placeholder="Lng" readonly>
+                                        <button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button>
+                                        <button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="supplier-row mb-3 pb-3 border-bottom">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6"><input type="text" name="supplier_name" class="form-control fw-bold w-100" placeholder="Назва складу" value="Головний Склад"></div>
+                                        <div class="col-3"><input type="number" name="supplier_trucks_count" class="form-control border-primary truck-count-trigger w-100" placeholder="Авто (шт)" oninput="renderTruckInputs(this)"></div>
+                                        <div class="col-3"><input type="number" step="0.1" name="supplier_inventory" class="form-control border-success w-100" placeholder="Товар (т)"></div>
+                                    </div>
+                                    <div class="trucks-config-area truck-input-group" style="display:none;">
+                                        <small class="text-muted d-block mb-1">Параметри авто (Тоннаж / Витрата):</small>
+                                        <div class="truck-inputs-wrapper"></div>
+                                        <input type="hidden" name="supplier_caps_hidden" class="caps-hidden">
+                                        <input type="hidden" name="supplier_cons_hidden" class="cons-hidden">
+                                    </div>
+                                    <div class="input-group mt-2">
+                                        <input type="text" name="supplier_lat" class="form-control lat-input" placeholder="Lat" readonly>
+                                        <input type="text" name="supplier_lng" class="form-control lng-input" placeholder="Lng" readonly>
+                                        <button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button>
+                                        <button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modern-card">
+                    <div class="card-header-custom d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-people-fill me-2"></i> Клієнти</span>
+                        <button type="button" class="btn btn-sm btn-light text-primary fw-bold" onclick="addBuyerRow()">+ Клієнт</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="buyers-container" class="p-3">
+                            {% if form and form.buyer_name %}
+                                {% for name in form.buyer_name %}
+                                <div class="buyer-row mb-3 pb-3 border-bottom">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-8"><input type="text" name="buyer_name" class="form-control w-100 fw-bold" value="{{ name }}" placeholder="Назва клієнта"></div>
+                                        <div class="col-4"><input type="number" step="0.1" name="buyer_demand" class="form-control w-100" value="{{ form.buyer_demand[loop.index0] }}" placeholder="Тонн"></div>
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="text" name="buyer_lat" class="form-control lat-input" value="{{ form.buyer_lat[loop.index0] }}" placeholder="Lat" readonly>
+                                        <input type="text" name="buyer_lng" class="form-control lng-input" value="{{ form.buyer_lng[loop.index0] }}" placeholder="Lng" readonly>
+                                        <button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button>
+                                        <button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="buyer-row mb-3 pb-3 border-bottom">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-8"><input type="text" name="buyer_name" class="form-control w-100 fw-bold" placeholder="Назва клієнта"></div>
+                                        <div class="col-4"><input type="number" step="0.1" name="buyer_demand" class="form-control w-100" placeholder="Тонн"></div>
+                                    </div>
+                                    <div class="input-group">
+                                        <input type="text" name="buyer_lat" class="form-control lat-input" placeholder="Lat" readonly>
+                                        <input type="text" name="buyer_lng" class="form-control lng-input" placeholder="Lng" readonly>
+                                        <button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button>
+                                        <button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="p-3 pt-0">
+                             <button type="submit" class="btn btn-primary btn-custom w-100 py-2 shadow-sm">Розрахувати Маршрут</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-7">
+            {% if result %}
+                {% if result.error %}
+                    <div class="alert alert-danger shadow-sm border-0 d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i><div>{{ result.error }}</div>
+                    </div>
+                {% else %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div><h4 class="mb-0 fw-bold d-inline-block me-2">Результати</h4><span class="badge bg-success" title="OSRM">🛣️ Реальні дороги</span></div>
+                        <div><button onclick="showRouteMap()" class="btn btn-primary btn-custom shadow-sm me-1"><i class="bi bi-map-fill"></i> Карта</button>{% if calc_id %}<a href="{{ url_for('export_excel', calc_id=calc_id) }}" class="btn btn-success btn-custom shadow-sm"><i class="bi bi-file-earmark-excel-fill"></i> Excel</a>{% endif %}</div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-4"><div class="p-3 bg-white rounded shadow-sm text-center border-bottom border-primary border-4 h-100"><div class="text-muted small">Всього км</div><div class="fs-5 fw-bold">{{ result.total_km }}</div></div></div>
+                        <div class="col-4"><div class="p-3 bg-white rounded shadow-sm text-center border-bottom border-success border-4 h-100"><div class="text-muted small">Вартість</div><div class="fs-5 fw-bold">{{ result.total_cost }} ₴</div></div></div>
+                        <div class="col-4"><div class="p-3 bg-white rounded shadow-sm text-center border-bottom border-info border-4 h-100"><div class="text-muted small">Авто задіяно</div><div class="fs-5 fw-bold">{{ result.routes|length }}</div></div></div>
+                    </div>
+
+                    {% for route in result.routes %}
+                    <div class="route-sheet">
+                        <div class="sheet-header">
+                            <div><h5 class="m-0 text-primary fw-bold"><i class="bi bi-truck"></i> {{ route.home_depot }} — Авто №{{ route.local_id }}</h5><div class="small text-muted mt-1">{{ route.distance_km }} км • {{ route.cost }} грн • {{ route.consumption }} л/100</div></div>
+                            <div class="text-end"><span class="badge bg-dark rounded-pill mb-1">Вантаж: {{ route.total_load }} / {{ route.max_capacity }} т</span></div>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            {% for step in route.steps %}
+                            <div class="step-item">
+                                <div class="me-3 text-center" style="width: 60px;">
+                                    <span class="badge bg-secondary rounded-circle mb-1">{{ loop.index }}</span>
+                                    {% if step.dist_from_prev > 0 %}
+                                        <div style="font-size: 0.7rem; color: #6c757d; line-height: 1;"><i class="bi bi-arrow-down"></i><br><span class="fw-bold">{{ step.dist_from_prev }}</span><br>км</div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold fs-5">{{ step.name }}</div>
+                                    {% if step.type == 'depot' %} <small class="text-primary fw-bold"><i class="bi bi-house-door-fill"></i> СКЛАД (Старт)</small> {% endif %}
+                                    {% if step.type == 'finish' %} <small class="text-muted"><i class="bi bi-flag-fill"></i> СКЛАД (Повернення)</small> {% endif %}
+                                </div>
+                                <div>
+                                    {% if step.type == 'client' %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-2">▼ {{ step.unload }} т</span>
+                                    {% endif %}
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ step.lat }},{{ step.lng }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2" title="Навігація"><i class="bi bi-cursor-fill"></i></a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5 text-muted"><i class="bi bi-globe-americas fs-1 d-block mb-3 opacity-25"></i><h4>Мульти-складська логістика</h4><p>Заповніть дані та натисніть "Розрахувати Маршрут".</p></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="mapModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Вибір локації</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="input-group mb-3"><input type="text" id="addressSearch" class="form-control" placeholder="Введіть адресу..."><button class="btn btn-primary" onclick="searchAddress()">Пошук</button></div><div id="map"></div><div class="mt-2 text-center"><small id="selectedCoordsText">...</small></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button><button type="button" class="btn btn-success px-4" onclick="confirmLocation()">ОК</button></div></div></div></div>
+<div class="modal fade" id="routeMapModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content" style="height: 90vh;"><div class="modal-header bg-dark text-white"><h5 class="modal-title"><i class="bi bi-map-fill me-2"></i> Карта Маршрутів</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><div id="resultMap" style="width: 100%; height: 100%;"></div></div></div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script id="routes-data-source" type="application/json">
+    {{ routes_json | safe }}
+</script>
+
+<script>
+    const dataElement = document.getElementById('routes-data-source');
+    const routeData = dataElement.textContent.trim() ? JSON.parse(dataElement.textContent) : [];
+
+    function renderTruckInputs(countInput) {
+        const row = countInput.closest('.supplier-row');
+        const wrapper = row.querySelector('.truck-inputs-wrapper');
+        const configArea = row.querySelector('.trucks-config-area');
+        const capsHidden = row.querySelector('.caps-hidden');
+        const consHidden = row.querySelector('.cons-hidden');
+        let count = parseInt(countInput.value); if (isNaN(count) || count < 0) count = 0;
+        if (count > 0) { configArea.style.display = 'block'; } else { configArea.style.display = 'none'; capsHidden.value = ""; consHidden.value = ""; return; }
+        const oldCaps = Array.from(wrapper.querySelectorAll('.truck-cap-input')).map(i => i.value);
+        const oldCons = Array.from(wrapper.querySelectorAll('.truck-cons-input')).map(i => i.value);
+        wrapper.innerHTML = '';
+        for (let i = 0; i < count; i++) {
+            const valCap = oldCaps[i] || "20"; const valCons = oldCons[i] || "30";
+            const html = `<div class="truck-config-group"><div class="input-group mini-truck-input"><span class="input-group-text bg-light text-muted">№${i+1}</span><input type="number" step="0.1" class="form-control truck-cap-input" value="${valCap}" oninput="updateHiddenFields(this)" placeholder="Т"><input type="number" step="0.1" class="form-control truck-cons-input" value="${valCons}" oninput="updateHiddenFields(this)" placeholder="Л"></div></div>`;
+            wrapper.insertAdjacentHTML('beforeend', html);
+        }
+        if (wrapper.querySelector('input')) { updateHiddenFields(wrapper.querySelector('input')); }
+    }
+
+    function updateHiddenFields(inputElement) {
+        if (!inputElement) return;
+        const row = inputElement.closest('.supplier-row');
+        const capInputs = row.querySelectorAll('.truck-cap-input');
+        const consInputs = row.querySelectorAll('.truck-cons-input');
+        const capsHidden = row.querySelector('.caps-hidden');
+        const consHidden = row.querySelector('.cons-hidden');
+        const capValues = Array.from(capInputs).map(inp => inp.value).filter(v => v);
+        const consValues = Array.from(consInputs).map(inp => inp.value).filter(v => v);
+        capsHidden.value = capValues.join(','); consHidden.value = consValues.join(',');
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.supplier-row').forEach(row => {
+            const countInput = row.querySelector('.truck-count-trigger');
+            if (countInput && countInput.value > 0) { renderTruckInputs(countInput); }
+        });
+    });
+
+    let map, marker, tempLat, tempLng, targetLatInput, targetLngInput;
+    const mapModal = new bootstrap.Modal(document.getElementById('mapModal'));
+    function initMap() {
+        if (map) return;
+        map = L.map('map').setView([49.0, 31.0], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(map);
+        map.on('click', function(e) { setTempMarker(e.latlng.lat, e.latlng.lng); });
+    }
+    function setTempMarker(lat, lng) {
+        tempLat = lat; tempLng = lng;
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lng]).addTo(map);
+        map.panTo([lat, lng]);
+        document.getElementById('selectedCoordsText').innerText = `Обрано: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+    function searchAddress() {
+        const query = document.getElementById('addressSearch').value;
+        if (!query) return;
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`).then(res => res.json()).then(data => {
+            if (data.length > 0) { setTempMarker(parseFloat(data[0].lat), parseFloat(data[0].lon)); map.setView([data[0].lat, data[0].lon], 15); } else alert("Не знайдено");
+        });
+    }
+    window.openMap = function(arg) {
+        const parent = arg.closest('.buyer-row, .supplier-row');
+        targetLatInput = parent.querySelector('.lat-input');
+        targetLngInput = parent.querySelector('.lng-input');
+        document.getElementById('addressSearch').value = "";
+        mapModal.show();
+        setTimeout(() => { initMap(); map.invalidateSize(); }, 500);
+    };
+    window.confirmLocation = function() { if (tempLat) { targetLatInput.value = tempLat.toFixed(6); targetLngInput.value = tempLng.toFixed(6); mapModal.hide(); } }
+    
+    window.addBuyerRow = function() {
+        const div = document.createElement('div');
+        div.className = 'buyer-row mb-3 pb-3 border-bottom';
+        div.innerHTML = `<div class="row g-2 mb-2"><div class="col-8"><input type="text" name="buyer_name" class="form-control w-100 fw-bold" placeholder="Назва клієнта"></div><div class="col-4"><input type="number" step="0.1" name="buyer_demand" class="form-control w-100" placeholder="Тонн"></div></div><div class="input-group"><input type="text" name="buyer_lat" class="form-control lat-input" placeholder="Lat" readonly><input type="text" name="buyer_lng" class="form-control lng-input" placeholder="Lng" readonly><button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button><button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button></div>`;
+        document.getElementById('buyers-container').appendChild(div);
+    }
+    window.addSupplierRow = function() {
+        const div = document.createElement('div');
+        div.className = 'supplier-row mb-3 pb-3 border-bottom';
+        div.innerHTML = `<div class="row g-2 mb-2"><div class="col-6"><input type="text" name="supplier_name" class="form-control fw-bold w-100" placeholder="Назва складу"></div><div class="col-3"><input type="number" name="supplier_trucks_count" class="form-control border-primary truck-count-trigger w-100" placeholder="Авто" oninput="renderTruckInputs(this)"></div><div class="col-3"><input type="number" step="0.1" name="supplier_inventory" class="form-control border-success w-100" placeholder="Товар (т)"></div></div><div class="trucks-config-area truck-input-group" style="display:none;"><small class="text-muted d-block mb-1">Параметри авто (Тоннаж / Витрата):</small><div class="truck-inputs-wrapper"></div><input type="hidden" name="supplier_caps_hidden" class="caps-hidden"><input type="hidden" name="supplier_cons_hidden" class="cons-hidden"></div><div class="input-group mt-2"><input type="text" name="supplier_lat" class="form-control lat-input" placeholder="Lat" readonly><input type="text" name="supplier_lng" class="form-control lng-input" placeholder="Lng" readonly><button type="button" class="btn btn-map border" onclick="openMap(this)">📍</button><button type="button" class="btn btn-outline-danger border" onclick="removeRow(this)">🗑</button></div>`;
+        document.getElementById('suppliers-container').appendChild(div);
+    }
+    window.removeRow = function(btn) { btn.closest('.buyer-row, .supplier-row').remove(); }
+
+    let resultMap;
+    const routeModal = new bootstrap.Modal(document.getElementById('routeMapModal'));
+    const colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe'];
+
+    window.showRouteMap = function() {
+        routeModal.show();
+        setTimeout(() => {
+            if (!resultMap) {
+                resultMap = L.map('resultMap').setView([49.0, 31.0], 6);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(resultMap);
+            } else {
+                resultMap.invalidateSize();
+                resultMap.eachLayer((layer) => { if (!!layer.toGeoJSON) resultMap.removeLayer(layer); });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(resultMap);
+            }
+            const bounds = [];
+            routeData.forEach((route, index) => {
+                const color = colors[index % colors.length];
+                const coords = [];
+                route.steps.forEach(step => {
+                    coords.push(`${step.lng},${step.lat}`);
+                    let iconColor = 'blue';
+                    const marker = L.circleMarker([step.lat, step.lng], { radius: 8, fillColor: color, color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8 }).addTo(resultMap);
+                    marker.bindPopup(`<b>${step.name}</b><br>${step.type}`);
+                    bounds.push([step.lat, step.lng]);
+                });
+                const url = `https://router.project-osrm.org/route/v1/driving/${coords.join(';')}?overview=full&geometries=geojson`;
+                fetch(url).then(res => res.json()).then(data => {
+                    if (data.routes && data.routes.length > 0) { L.geoJSON(data.routes[0].geometry, { style: { color: color, weight: 5, opacity: 0.7 } }).addTo(resultMap); }
+                });
+            });
+            if (bounds.length > 0) { resultMap.fitBounds(bounds, { padding: [50, 50] }); }
+        }, 500);
+    }
+</script>
+
+</body>
+</html>

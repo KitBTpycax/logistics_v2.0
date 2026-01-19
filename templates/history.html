@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Історія рейсів</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/"><i class="bi bi-truck-front"></i> Логістика PRO</a>
+        <a href="/" class="btn btn-outline-light btn-sm">🡠 Назад</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h2 class="mb-4 text-center">Архів Маршрутів</h2>
+    
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">ID</th>
+                        <th>Дата</th>
+                        <th>Дистанція</th>
+                        <th>Вартість</th>
+                        <th class="text-end pe-4">Дії</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for calc in calculations %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-muted">#{{ calc.id }}</td>
+                        <td>
+                            <div>{{ calc.date.strftime('%d.%m.%Y') }}</div>
+                            <small class="text-muted">{{ calc.date.strftime('%H:%M') }}</small>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ calc.total_km }} км</span></td>
+                        <td class="fw-bold text-success">{{ calc.total_cost }} ₴</td>
+                        <td class="text-end pe-4">
+                            <a href="/history/{{ calc.id }}" class="btn btn-primary btn-sm me-1" title="Деталі">
+                                <i class="bi bi-eye-fill"></i>
+                            </a>
+                            <a href="{{ url_for('export_excel', calc_id=calc.id) }}" class="btn btn-success btn-sm me-1" title="Excel">
+                                <i class="bi bi-file-earmark-excel-fill"></i>
+                            </a>
+                            <form action="{{ url_for('delete_calculation', calc_id=calc.id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Видалити цей рейс?');">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Видалити">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-3 opacity-25"></i>
+                            Історія порожня
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
