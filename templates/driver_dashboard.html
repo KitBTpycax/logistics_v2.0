@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Мої маршрути - Водій</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/my_routes"><i class="bi bi-truck"></i> Панель водія</a>
+        <div class="d-flex align-items-center">
+            <span class="text-light me-3"><i class="bi bi-person-circle"></i> {{ current_user.name }}</span>
+            <a href="/logout" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right"></i> Вихід</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <h3 class="mb-4"><i class="bi bi-list-check"></i> Мої призначені маршрути</h3>
+    
+    {% if not assigned_data %}
+        <div class="alert alert-info text-center shadow-sm py-4">
+            <i class="bi bi-info-circle fs-2 d-block mb-2"></i>
+            <h5 class="mb-0">Наразі у вас немає призначених маршрутів.</h5>
+            <p class="text-muted small mt-1">Очікуйте, поки логіст не призначить вам рейс.</p>
+        </div>
+    {% else %}
+        <div class="row g-4">
+            {% for item in assigned_data %}
+            <div class="col-md-6">
+                <div class="modern-card h-100">
+                    <div class="card-header-custom bg-primary text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-calendar-check"></i> {{ item.date.strftime('%d.%m.%Y %H:%M') }}
+                        </div>
+                        <span class="badge bg-light text-primary shadow-sm border">Авто №{{ item.route_index + 1 }}</span>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-3"><i class="bi bi-building"></i> Зі складу: {{ item.route.home_depot }}</h5>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col"><div class="p-2 bg-light rounded border"><small class="text-muted d-block">Дистанція</small><span class="fw-bold fs-5">{{ item.route.distance_km }} км</span></div></div>
+                            <div class="col"><div class="p-2 bg-light rounded border"><small class="text-muted d-block">Вантаж</small><span class="fw-bold fs-5">{{ item.route.total_load }} / {{ item.route.max_capacity }} т</span></div></div>
+                            <div class="col"><div class="p-2 bg-light rounded border"><small class="text-muted d-block">Час</small><span class="fw-bold fs-5 text-warning">{{ item.route.route_duration_min }} хв</span></div></div>
+                        </div>
+                        <div class="text-muted small text-center mb-3">
+                            <i class="bi bi-fuel-pump"></i> Пальне: <b>{{ item.route.fuel_type|upper }}</b> ({{ item.route.consumption }} л/100км)
+                        </div>
+
+                        {% set origin = item.route.steps[0].lat ~ ',' ~ item.route.steps[0].lng %}
+                        {% set destination = item.route.steps[-1].lat ~ ',' ~ item.route.steps[-1].lng %}
+                        {% set waypoints = [] %}
+                        {% for step in item.route.steps[1:-1] %}
+                            {% set _ = waypoints.append(step.lat ~ ',' ~ step.lng) %}
+                        {% endfor %}
+                        {% set gmaps_url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' ~ origin ~ '&destination=' ~ destination %}
+                        {% if waypoints %}
+                            {% set gmaps_url = gmaps_url ~ '&waypoints=' ~ waypoints|join('%7C') %}
+                        {% endif %}
+
+                        <div class="d-grid gap-2 mt-3">
+                            <a href="{{ gmaps_url }}" target="_blank" class="btn btn-success btn-custom py-2 shadow-sm"><i class="bi bi-google"></i> Перенести весь маршрут в Google Maps</a>
+                            <button onclick='showMyRoute({{ item.route | tojson | safe }})' class="btn btn-outline-primary btn-custom py-2 shadow-sm"><i class="bi bi-map-fill"></i> Наша внутрішня карта</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Модальне вікно для карти -->
+<div class="modal fade" id="driverMapModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height: 90vh;">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-map-fill me-2"></i> Деталі маршруту</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 position-relative">
+                <div class="position-absolute top-0 end-0 m-3 p-3 bg-white rounded shadow z-3" style="max-height: 80vh; overflow-y: auto; width: 350px;" id="routeStepsOverlay">
+                    <!-- Кроки будуть тут -->
+                </div>
+                <div id="driverMap" style="width: 100%; height: 100%;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    let driverMap;
+    const driverModal = new bootstrap.Modal(document.getElementById('driverMapModal'));
+    
+    function showMyRoute(route) {
+        document.getElementById('routeStepsOverlay').innerHTML = '';
+        
+        let html = '<h5 class="border-bottom pb-2 mb-3 fw-bold text-primary"><i class="bi bi-list-ol"></i> Точки завантаження/вивантаження:</h5><div class="list-group list-group-flush">';
+        route.steps.forEach((step, idx) => {
+            let icon = 'bi-geo-alt';
+            let color = 'text-dark';
+            if (step.type === 'depot') { icon = 'bi-house-door-fill'; color = 'text-success'; }
+            else if (step.type === 'finish') { icon = 'bi-flag-fill'; color = 'text-secondary'; }
+            else if (step.type === 'client') { icon = 'bi-box-arrow-down'; color = 'text-danger'; }
+            else if (step.type === 'sleep') { icon = 'bi-moon-stars-fill'; color = 'text-primary'; }
+            
+            html += `
+            <div class="list-group-item px-1 py-2 border-bottom">
+                <div class="d-flex align-items-start">
+                    <span class="badge bg-primary me-3 mt-1 fs-6">${idx+1}</span>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold ${color}"><i class="bi ${icon}"></i> ${step.name}</div>
+                        ${step.type === 'client' ? `<div class="text-danger fw-bold small mt-1">▼ Вивантажити: ${step.unload} т</div>` : ''}
+                        <div class="mt-2 text-end">
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${step.lat},${step.lng}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-cursor-fill"></i> Навігатор</a>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+        document.getElementById('routeStepsOverlay').innerHTML = html;
+
+        driverModal.show();
+        
+        setTimeout(() => {
+            if (!driverMap) {
+                driverMap = L.map('driverMap').setView([49.42, 26.98], 6);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM' }).addTo(driverMap);
+            } else {
+                driverMap.invalidateSize();
+                driverMap.eachLayer((layer) => { if (!!layer.toGeoJSON) driverMap.removeLayer(layer); });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMap);
+            }
+            
+            const bounds = [];
+            const coords = [];
+            route.steps.forEach(step => {
+                coords.push(`${step.lng},${step.lat}`);
+                let fillColor = '#4363d8';
+                if(step.type === 'depot' || step.type === 'finish') fillColor = '#3cb44b';
+                
+                const marker = L.circleMarker([step.lat, step.lng], { radius: 8, fillColor: fillColor, color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8 }).addTo(driverMap);
+                marker.bindPopup(`<b>${step.name}</b><br>${step.type}`);
+                bounds.push([step.lat, step.lng]);
+            });
+            
+            const url = `https://router.project-osrm.org/route/v1/driving/${coords.join(';')}?overview=full&geometries=geojson`;
+            fetch(url).then(res => res.json()).then(data => {
+                if (data.routes && data.routes.length > 0) { L.geoJSON(data.routes[0].geometry, { style: { color: '#4363d8', weight: 5, opacity: 0.7 } }).addTo(driverMap); }
+            });
+            
+            if (bounds.length > 0) { driverMap.fitBounds(bounds, { padding: [50, 50] }); }
+        }, 500);
+    }
+</script>
+
+</body>
+</html>
